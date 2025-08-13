@@ -1,15 +1,12 @@
 #!/home/pi/software/bin/python3
 import os
+import sys
 import time
 import json
 import board
 import adafruit_dht
 import RPi.GPIO as GPIO
 from ads7830 import ADS7830
-
-#mqtt initialize, same ssid as the Raspberry LCD!
-#BROKER_IP = "ip_addr_here"   #phone hotspot preferred
-#TOPIC = "garden/data"
 
 #channel initialize
 SOIL_CHANNEL = 0    #soil sensor signal pin on ADS7830 channel A0
@@ -41,8 +38,6 @@ def main():
     adc = ADS7830()
     dht = adafruit_dht.DHT11(DHT_PIN)
 
-    #client.connect(BROKER_IP, 1883, 60) #for later, or remove if anything. mqtt comms
-
     try:
         while True:
             #os.system('clear') #uncomment if you dont wanna debug
@@ -64,21 +59,22 @@ def main():
                 temperature = None
                 humidity = None
 
-            # Print output
-            print("---- Sensor Readings ----")
-            print(f"Soil: {soil_status}")
-            if humidity is not None and temperature is not None:
-                print(f"Temp: {temperature: .1f} Celcius   Humidity: {humidity: .1f}%")
-            else:
-                print("Standby")
-            
-            #publish JSON for tx, Raspberry LCD for rx
             payload = {
                 "soil_status": soil_status,
                 "humidity": None if humidity is None else round(humidity, 1),
-                "temperature": None if temperature is None else round(temperature, 1),
-            }
-            #client.publish(TOPIC, json.dumps(payload), qos=0, retain=False)
+                "temperature": None if temperature is None else round(temperature, 1),}
+
+            if "--json" in sys.argv:
+                print(json.dumps(payload), flush=True)
+            else:
+              
+                print("---- Sensor Readings ----")
+                print(f"Soil: {soil_status}")
+                if humidity is not None and temperature is not None:
+                    print(f"Temp: {temperature:.1f} Celsius   Humidity: {humidity:.1f}%")
+                else:
+                    print("Standby")
+
                 
             time.sleep(2)
 
