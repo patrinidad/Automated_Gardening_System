@@ -7,12 +7,17 @@ import json
 import time
 import shlex
 from smbus2 import SMBus
+import RPi.GPIO as GPIO
+
+BUTTON_PIN = 24  
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) #button inital config
 
 #ssh is the main method of comms
 R1_USER = "pi"
-R1_HOST = "192.168.155.156" 
-R1_CMD  = "/home/pi/software/bin/python3 /home/pi/garden/garden.py --json"
-
+R1_HOST = "10.0.0.2" 
+R1_CMD  = "/home/pi/software/bin/python3 /home/pi/garden/garden3.py --json"
+R1_PUMP_CMD = "/home/pi/software/bin/python3 /home/pi/garden/pump_remote.py 2"
 
 # initalization LCD JHD2202M1 
 I2C_BUS_NUM = 1
@@ -51,7 +56,7 @@ def lcd_write_line(text, row):
     for ch in s:
         lcd_data(ord(ch))
 
-#writing info for each fow
+#writing info for each row
 def row1(soil, hum):
     #outputs "Soil: Dry   H:55%"
     s = soil or "Unknown"
@@ -74,7 +79,7 @@ def row2(temp):
         return "Temp: --.- C"
 
 def start_ssh_process():
- 	#no password prompts required if key-gen is established for this Pi to the sensor Pi (see ssh variables above)
+    #no password prompts required if key-gen is established for this Pi to the sensor Pi (see ssh variables above)
     cmd = f"ssh -o BatchMode=yes -o ConnectTimeout=5 {R1_USER}@{R1_HOST} {shlex.quote(R1_CMD)}"
     return subprocess.Popen(
         cmd,
@@ -85,6 +90,17 @@ def start_ssh_process():
         bufsize=1
     )
 
+def send_pump_override():
+    cmd_pump = f"ssh -o BatchMode=yes -o ConnectTimeout=5 {R1_USER}@{R1_HOST} {shlex.quote(R1_PUMP_CMD)}"
+    subprocess.run(cmd_pump, shell=True, check=False)
+
+def check_manual_override():
+    if GPIO.input(BUTTON_PIN) == GPIO.HIGH:  # button pressed
+        send_pump_override()
+        time.sleep(0.2)  # debounce
+
+
+
 def main():
     lcd_init()
     lcd_write_line("Connecting to sensors...", 0)
@@ -93,6 +109,7 @@ def main():
     proc = None
     try:
         while True:
+            check_manual_override()
             #try to see if ssh is running
             if proc is None or proc.poll() is not None:
                 proc = start_ssh_process()
@@ -130,6 +147,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        GPIO.cleanup()
         try:
             if proc and proc.poll() is None:
                 proc.terminate()

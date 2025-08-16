@@ -20,6 +20,7 @@ SOIL_MOIST_THRESHOLD = 120
 #relay initialize
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(RELAY_GPIO, GPIO.OUT, initial=GPIO.LOW)  #start at OFF
+# NOTE: button is now on R2; no BUTTON_PIN setup here
 
 def soil_condition(value):
     if value < SOIL_DRY_THRESHOLD:
@@ -40,8 +41,6 @@ def main():
 
     try:
         while True:
-            #os.system('clear') #uncomment if you dont wanna debug
-
             # read soil 
             soil_data = adc.read_channel(SOIL_CHANNEL)
             soil_status = soil_condition(soil_data)
@@ -62,12 +61,12 @@ def main():
             payload = {
                 "soil_status": soil_status,
                 "humidity": None if humidity is None else round(humidity, 1),
-                "temperature": None if temperature is None else round(temperature, 1),}
+                "temperature": None if temperature is None else round(temperature, 1),
+            }
 
             if "--json" in sys.argv:
                 print(json.dumps(payload), flush=True)
             else:
-              
                 print("---- Sensor Readings ----")
                 print(f"Soil: {soil_status}")
                 if humidity is not None and temperature is not None:
@@ -75,14 +74,17 @@ def main():
                 else:
                     print("Standby")
 
-                
             time.sleep(2)
 
     except KeyboardInterrupt:
         print("\nExiting...\n")
     finally:
-        dht.exit()
+        try:
+            dht.exit()
+        except Exception:
+            pass
         relay_set(False)
+        GPIO.output(RELAY_GPIO, GPIO.LOW)
         GPIO.cleanup()
 
 if __name__ == "__main__":
